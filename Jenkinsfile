@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        GIT_REPO_URL = 'https://github.com/YOUR_USERNAME/cicd.git'
+        GIT_REPO_URL = 'https://github.com/calvinjohnplacio/testlab.git'
         GIT_CREDENTIALS_ID = 'github-pat'
         GIT_BRANCH = 'main'
     }
