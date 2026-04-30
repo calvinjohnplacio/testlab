@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         GIT_REPO_URL = 'https://github.com/calvinjohnplacio/testlab.git'
-        GIT_CREDENTIALS_ID = 'github-pat'
+        GIT_CREDENTIALS_ID = 'github-pat2'
         GIT_BRANCH = 'main'
     }
 
