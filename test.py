@@ -16,35 +16,37 @@ driver = webdriver.Chrome(service=service, options=options)
 
 try:
     url = f"http://localhost/staging/{test_file}"
-    print(f"🧐 Auditing: {url}")
+    print(f"🚀 Auditing: {url}")
     
     driver.get(url)
-    content = driver.page_source.lower()
+    content = driver.page_source
+    lower_content = content.lower()
 
-    # 🚩 FLAG 1: Explicit PHP Errors
-    errors = ["fatal error", "parse error", "warning:", "stack trace:"]
-    found_errors = [e for e in errors if e in content]
-    
-    # 🚩 FLAG 2: Check if the specific expected output is MISSING
-    # If the PHP crashed, "hello world" won't be in the source
-    expected_text = "hello world"
+    # 1. HARD BLOCK: Check for PHP Error Strings
+    errors = ["fatal error", "parse error", "warning:", "stack trace:", "xdebug-error"]
+    found_errors = [e for e in errors if e in lower_content]
     
     if found_errors:
-        print(f"❌ BLOCKED: Found PHP errors: {found_errors}")
-        sys.exit(1)
-        
-    if expected_text not in content:
-        print(f"❌ BLOCKED: PHP crashed or failed to render expected output ('{expected_text}').")
-        # We print the content to Jenkins logs so you can see what happened
-        print("--- PAGE CONTENT START ---")
-        print(driver.page_source)
-        print("--- PAGE CONTENT END ---")
+        print(f"❌ DEPLOYMENT BLOCKED: Found PHP errors: {found_errors}")
         sys.exit(1)
 
-    print(f"✅ PASS: {test_file} rendered correctly.")
+    # 2. HARD BLOCK: Check for Raw PHP Leakage
+    # If "<?php" appears in the browser, the server failed to process the file.
+    if "<?php" in content or "<?=" in content:
+        print("❌ DEPLOYMENT BLOCKED: Raw PHP code leaked! Apache is not executing PHP.")
+        sys.exit(1)
+
+    # 3. SOFT BLOCK: Check for Empty Body
+    # If the page has 0 text content, it's likely a silent crash (WSOD - White Screen of Death)
+    body_text = driver.find_element("tag name", "body").text.strip()
+    if not body_text and "img" not in lower_content:
+        print("❌ DEPLOYMENT BLOCKED: Page is blank. Possible silent PHP crash.")
+        sys.exit(1)
+
+    print(f"✅ PASS: {test_file} rendered without errors.")
 
 except Exception as e:
-    print(f"⚠️ TEST SYSTEM FAILURE: {e}")
+    print(f"⚠️ TEST SYSTEM ERROR: {e}")
     sys.exit(1)
 finally:
     driver.quit()
