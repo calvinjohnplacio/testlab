@@ -4,7 +4,6 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-# Get filename from Jenkins
 test_file = os.getenv("TARGET_PHP_FILE", "index.php")
 
 options = Options()
@@ -17,40 +16,35 @@ driver = webdriver.Chrome(service=service, options=options)
 
 try:
     url = f"http://localhost/staging/{test_file}"
-    print(f"🚀 STRICT TESTING: {url}")
+    print(f"🧐 Auditing: {url}")
     
     driver.get(url)
-    
-    # Get content and page title
     content = driver.page_source.lower()
-    page_title = driver.title.lower()
 
-    # Red Flags: Added common PHP error strings and generic server error indicators
-    errors = [
-        "fatal error", "parse error", "warning:", 
-        "stack trace:", "xdebug-error", "sqlsrv_query",
-        "404 not found", "500 internal server error",
-        "allowed memory size exhausted"
-    ]
+    # 🚩 FLAG 1: Explicit PHP Errors
+    errors = ["fatal error", "parse error", "warning:", "stack trace:"]
+    found_errors = [e for e in errors if e in content]
     
-    found = [e for e in errors if e in content or e in page_title]
+    # 🚩 FLAG 2: Check if the specific expected output is MISSING
+    # If the PHP crashed, "hello world" won't be in the source
+    expected_text = "hello world"
     
-    # Strict Check 1: Content search
-    if found:
-        print(f"❌ ERROR DETECTED: {found}")
+    if found_errors:
+        print(f"❌ BLOCKED: Found PHP errors: {found_errors}")
+        sys.exit(1)
+        
+    if expected_text not in content:
+        print(f"❌ BLOCKED: PHP crashed or failed to render expected output ('{expected_text}').")
+        # We print the content to Jenkins logs so you can see what happened
+        print("--- PAGE CONTENT START ---")
+        print(driver.page_source)
+        print("--- PAGE CONTENT END ---")
         sys.exit(1)
 
-    # Strict Check 2: Check if the body is empty (often happens if display_errors is off)
-    body_text = driver.find_element("tag name", "body").text.strip()
-    if not body_text and "img" not in content:
-        print("❌ ERROR: Page is blank! (Potential suppressed PHP Fatal Error)")
-        sys.exit(1)
-
-    print(f"✅ SUCCESS: {test_file} looks clean.")
+    print(f"✅ PASS: {test_file} rendered correctly.")
 
 except Exception as e:
-    print(f"⚠️ TEST CRASHED: {e}")
+    print(f"⚠️ TEST SYSTEM FAILURE: {e}")
     sys.exit(1)
-
 finally:
     driver.quit()
